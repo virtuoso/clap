@@ -44,6 +44,8 @@ static inline float lut_clampf(float x)
     return clampf(x, 0.0f, HDR_LUT_MAX);
 }
 
+static inline float luma(vec3 in)   { return vec3_mul_inner(in, (vec3){ 0.3f, 0.59f, 0.11f }); }
+
 static void __orange_blue_filmic(vec3 color, vec3 out)
 {
     vec3 powed;
@@ -142,6 +144,16 @@ static void __scifi_neon(vec3 in, vec3 out)
 static inline float abyss_curve(float x)
 {
     return lut_clampf(powf(x, 1.3f));
+}
+
+static inline void __saturate(vec3 in, vec3 out)
+{
+    float l = luma(in);
+    float e = expf(l);
+    float g = in[1] * e;
+    out[0] = in[0] * e + g * 0.15;
+    out[1] = g * 0.7;
+    out[2] = in[2] * e + g * 0.15;
 }
 
 static void __deep_sea_abyss(vec3 in, vec3 out)
@@ -249,6 +261,12 @@ static struct {
         .exposure   = 2.35,
         .contrast   = 0.01,
     },
+    [LUT_SATURATE]              = {
+        .name       = "SATURATE",
+        .fn         = __saturate,
+        .exposure   = 2.4,
+        .contrast   = 0.1,
+    },
     [LUT_DEEP_SEA_ABYSS]        = {
         .name       = "deep sea abyss",
         .fn         = __deep_sea_abyss,
@@ -286,6 +304,7 @@ lut_preset lut_presets_all[LUT_MAX + 1] = {
     LUT_GREEN_MATRIX,
     LUT_SCIFI_BLUEGREEN,
     LUT_SCIFI_NEON,
+    LUT_SATURATE,
     LUT_DEEP_SEA_ABYSS,
     LUT_BLOODVEIL_CRIMSON,
     LUT_MAD_MAX_BLEACH,

@@ -727,6 +727,7 @@ static const char *joint_type_str[JOINT_TYPE_MAX] = {
     [JOINT_FOOT_RIGHT]  = "foot_right",
     [JOINT_HAND_LEFT]   = "hand_left",
     [JOINT_HAND_RIGHT]  = "hand_right",
+    [JOINT_TAIL]        = "tail",
 };
 
 cresp(const_char) joint_type_name(joint_type type)
@@ -1820,7 +1821,7 @@ int animation_by_name(model3d *m, const char *name)
     return -1;
 }
 
-static bool parent_transform_apply(entity3d *e)
+static bool parent_transform_apply(entity3d *e, struct scene *s)
 {
     auto parent = e->parent;
 
@@ -1871,6 +1872,23 @@ static bool parent_transform_apply(entity3d *e)
 
     mat4x4_invert(e->inverse_mx, e->mx);
     entity3d_aabb_update(e);
+    scene_bv_update(s, e);
+
+    /*
+     * A static collider goes where the world matrix puts the entity, as an
+     * unparented one goes where its xform does (default_update()); the
+     * physics takes a rotation without the scale
+     */
+    if (entity3d_is(e, &E3DQ(.all_of = ENTITY3D_HAS_PHYSICS, .none_of = ENTITY3D_PHYS_IS_BODY))) {
+        vec3 pos, scale;
+        mat4x4 rot_mx;
+        quat rot;
+
+        mat4x4_decompose(e->mx, pos, rot, scale);
+        mat4x4_from_quat(rot_mx, rot);
+        phys_body_set_position(e->phys_body, pos);
+        phys_body_rotate_mat4x4(e->phys_body, rot_mx);
+    }
 
     return true;
 }
@@ -1896,7 +1914,7 @@ static int default_update(entity3d *e, void *data)
     /* the procedural rigs place the body as they pose it: before its matrix */
     if (scene && !entity3d_matches(e, ENTITY3D_PARENT_POSE))    animator_update(&e->animator, scene);
 
-    if (!parent_transform_apply(e) && transform_is_updated(&e->xform)) {
+    if (!parent_transform_apply(e, scene) && transform_is_updated(&e->xform)) {
         transform_clear_updated(&e->xform);
         e->seq++;
         mat4x4_identity(e->mx);
@@ -2091,7 +2109,8 @@ void entity3d_scale(entity3d *e, float scale)
 void entity3d_position(entity3d *e, vec3 pos)
 {
     transform_set_pos(&e->xform, pos);
-    if (entity3d_matches(e, ENTITY3D_HAS_PHYSICS))
+    /* a parented entity's @pos is in its parent's frame: parent_transform_apply() places its collider */
+    if (entity3d_matches(e, ENTITY3D_HAS_PHYSICS) && !e->parent)
         phys_body_set_position(e->phys_body, pos);
 }
 
@@ -2105,7 +2124,7 @@ void entity3d_world_to_model(entity3d *e, const vec3 world, vec3 model)
 void entity3d_move(entity3d *e, vec3 off)
 {
     const float *pos = transform_move(&e->xform, off);
-    if (entity3d_matches(e, ENTITY3D_HAS_PHYSICS))
+    if (entity3d_matches(e, ENTITY3D_HAS_PHYSICS) && !e->parent)
         phys_body_set_position(e->phys_body, pos);
 }
 

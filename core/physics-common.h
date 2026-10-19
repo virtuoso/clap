@@ -75,4 +75,45 @@ vec3 *phys_limb_vx(entity3d *e, int joint, const vec3 *vx, size_t nr_vx);
  */
 void phys_limb_place(entity3d *e, int joint, const vec3 offset, vec3 pos, mat4x4 rot);
 
+/**
+ * struct phys_pen_walk - a phys_body_for_each_pen() under way
+ * @params: its parameters
+ * @count:  how many entities went to phys_pen_params::fn so far
+ *
+ * The backend finds what reaches into the body, and hands each entity to
+ * phys_pen_walk_visit() once.
+ */
+typedef struct phys_pen_walk {
+    const phys_pen_params   *params;
+    size_t                  count;
+} phys_pen_walk;
+
+/**
+ * phys_pen_walk_init() - start a phys_body_for_each_pen()
+ * @walk:   [out] the walk
+ * @params: phys_body_for_each_pen()'s parameters
+ *
+ * Return: CERR_OK, or CERR_INVALID_ARGUMENTS without phys_pen_params::fn or
+ *         with a negative depth
+ */
+cerr phys_pen_walk_init(phys_pen_walk *walk, const phys_pen_params *params);
+
+/**
+ * phys_pen_walk_visit() - hand an entity that reaches into the body to the callback
+ * @walk:   the walk
+ * @e:      the entity
+ *
+ * Return: true to go on, false if the callback asks to stop
+ */
+bool phys_pen_walk_visit(phys_pen_walk *walk, entity3d *e);
+
+/**
+ * phys_pen_walk_done() - finish a phys_body_for_each_pen()
+ * @walk:   the walk
+ *
+ * Return: phys_body_for_each_pen()'s result: how many entities went to the
+ *         callback, or CERR_NOT_FOUND if none
+ */
+cres(size_t) phys_pen_walk_done(const phys_pen_walk *walk);
+
 #endif /* __CLAP_PHYSICS_COMMON_H__ */

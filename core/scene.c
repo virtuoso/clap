@@ -26,6 +26,7 @@
 #include "ui-debug-fs.h"
 #include "ui.h"
 #include "worker.h"
+#include <math.h>
 
 void scene_control_next(struct scene *s)
 {
@@ -516,6 +517,9 @@ static void scene_characters_debug(struct scene *scene)
             ui_igCheckbox("can jump", &c->can_jump);
             ui_igCheckbox("can dash", &c->can_dash);
             ui_igCheckbox("can levitate", &c->can_levitate);
+            ui_igCheckbox("turns with ground", &c->turns_with_ground);
+            ui_igCheckbox("tilts with ground", &c->tilts_with_ground);
+            ui_igCheckbox("bobs head", &c->bobs_head);
             igPopID();
             igEndTable();
         }
@@ -1226,27 +1230,32 @@ static void scene_camera_calc(struct scene *s, int camera)
     camera_view_update(cam, s->clap_ctx);
     view_calc_frustum(s->clap_ctx, &cam->view);
 
-    entity3d *env = cam->bv;
+    // entity3d *env = cam->bv;
     cam->bv = NULL;
 
     float near_backup = 0.0;
-    if (env) {
-        vec3 light_dir;
-        /*
-         * Calculate frusta's near plane extension from the bounding volume's
-         * dimensions and the light direction vector.
-         * TODO: this does not take into account the camera's position within
-         * the AABB.
-         */
-        vec3_norm_safe(light_dir, &s->light.dir[0]);
-        float xz_mix = linf_interp(
-            entity3d_aabb_Z(env),
-            entity3d_aabb_X(env),
-            fabsf(vec3_mul_inner(light_dir, (vec3){ 1.0, 0.0, 0.0 }))
-        );
-        float ycos = fmaxf(fabsf(vec3_mul_inner(light_dir, (vec3){ 0.0, 1.0, 0.0 })), 0.2);
-        near_backup = min(xz_mix / ycos, entity3d_aabb_avg_edge(env));
-    }
+    near_backup = cbrtf(
+        (s->bv[1][0] - s->bv[0][0]) *
+        (s->bv[1][1] - s->bv[0][1]) *
+        (s->bv[1][2] - s->bv[0][2])
+    );
+    // if (env) {
+    //     vec3 light_dir;
+    //     /*
+    //      * Calculate frusta's near plane extension from the bounding volume's
+    //      * dimensions and the light direction vector.
+    //      * TODO: this does not take into account the camera's position within
+    //      * the AABB.
+    //      */
+    //     vec3_norm_safe(light_dir, &s->light.dir[0]);
+    //     float xz_mix = linf_interp(
+    //         entity3d_aabb_Z(env),
+    //         entity3d_aabb_X(env),
+    //         fabsf(vec3_mul_inner(light_dir, (vec3){ 1.0, 0.0, 0.0 }))
+    //     );
+    //     float ycos = fmaxf(fabsf(vec3_mul_inner(light_dir, (vec3){ 0.0, 1.0, 0.0 })), 0.2);
+    //     near_backup = min(xz_mix / ycos, entity3d_aabb_avg_edge(env));
+    // }
     /*
      * Only the first light source gets to cast shadows for now;
      * spotlights get their view from light_update_*() callbacks.
@@ -1524,6 +1533,9 @@ cerr scene_init(struct scene *scene, struct clap_context *ctx)
     /* messagebus_done() will "unsubscribe" (free) these */
     CERR_RET_CERR(subscribe(ctx, MT_INPUT, scene_handle_input, scene));
 
+    vec3_dup(scene->bv[0], (vec3){ INFINITY, INFINITY, INFINITY });
+    vec3_dup(scene->bv[1], (vec3){ -INFINITY, -INFINITY, -INFINITY });
+
     scene->initialized = true;
 
     return CERR_OK;
@@ -1693,9 +1705,9 @@ static void scene_spawn_prim_children(struct scene *scene, entity3d *e, struct g
 
         /*
          * The child's local TRS stays identity for rendering (see
-         * parent_transform_apply()), and nothing pushes transforms to
-         * parented entities' geoms afterwards, so place the static geom
-         * at the parent's world position/rotation explicitly.
+         * parent_transform_apply()), and its geom only follows the parent
+         * from the child's first update on, so place the static geom at
+         * the parent's world position/rotation explicitly.
          */
         phys_body_set_position(child->phys_body, transform_pos(&e->xform, NULL));
         phys_body_rotate_xform(child->phys_body, &e->xform);
@@ -1941,6 +1953,14 @@ static model_prep *model_prep_submit(struct scene *scene, JsonNode *node)
     return mp;
 }
 
+void scene_bv_update(struct scene *s, entity3d *e)
+{
+    for (int i = 0; i < 3; i++) {
+        s->bv[0][i] = fminf(s->bv[0][i], e->aabb[0][i]);
+        s->bv[1][i] = fmaxf(s->bv[1][i], e->aabb[1][i]);
+    }
+}
+
 static void scene_loader_hold(struct scene_loader *sl, model3dtx *txm);
 
 /*
@@ -1953,6 +1973,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node, model_prep 
     char *name = NULL, *gltf = NULL;
     bool terrain_clamp = false, cull_face = true, alpha_blend = false, can_jump = false, can_dash = false;
     bool outline_exclude = false, can_levitate = false, nm_hazard = false;
+    bool turns_with_ground = false, tilts_with_ground = false, bobs_head = false;
     JsonNode *p, *ent = nullptr, *ch = nullptr, *phys = nullptr, *anis = nullptr, *sfx = nullptr, *seqs = nullptr;
     double fade = -1.0;     /* the scene's "fade"; negative: the asset's, or none */
     int motion_segments = 8;
@@ -1982,6 +2003,12 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node, model_prep 
             can_jump = p->bool_;
         else if (p->tag == JSON_BOOL && !strcmp(p->key, "can_levitate"))
             can_levitate = p->bool_;
+        else if (p->tag == JSON_BOOL && !strcmp(p->key, "turns_with_ground"))
+            turns_with_ground = p->bool_;
+        else if (p->tag == JSON_BOOL && !strcmp(p->key, "tilts_with_ground"))
+            tilts_with_ground = p->bool_;
+        else if (p->tag == JSON_BOOL && !strcmp(p->key, "bobs_head"))
+            bobs_head = p->bool_;
         else if (p->tag == JSON_ARRAY && !strcmp(p->key, "entity"))
             ent = p->children.head;
         else if (p->tag == JSON_ARRAY && !strcmp(p->key, "character"))
@@ -2021,7 +2048,7 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node, model_prep 
     }
 
     if (IS_CERR(mp->err)) {
-        warn("Error loading GLTF '%s'\n", gltf);
+        err_cerr(mp->err, "Error loading GLTF '%s'\n", gltf);
         return mp->err;
     }
 
@@ -2176,6 +2203,8 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node, model_prep 
         for (p = sfx->children.head; p; p = p->next)
             sfx_add_from_json(&txm->model->sfxc, clap_get_sound(scene->clap_ctx), p);
 
+    cerr err = CERR_OK;
+
     if (ent || ch) {
         JsonNode *it = ent ? ent : ch;
         for (; it; it = it->next) {
@@ -2193,6 +2222,9 @@ static cerr model_new_from_json(struct scene *scene, JsonNode *node, model_prep 
                 c->can_dash = can_dash;
                 c->can_jump = can_jump;
                 c->can_levitate = can_levitate;
+                c->turns_with_ground = turns_with_ground;
+                c->tilts_with_ground = tilts_with_ground;
+                c->bobs_head = bobs_head;
             } else {
                 e = ref_new(entity3d, .txmodel = txm);
             }
@@ -2404,6 +2436,7 @@ light_done:
             }
         }
     } else {
+        struct clap_config *clap_cfg = clap_get_config(scene->clap_ctx);
         struct instantiator *instor, *iter;
         entity3d *e;
         int nr_nodes = gltf_get_nodes(gd), ni, spawned = 0;
@@ -2421,6 +2454,14 @@ light_done:
             CERR_RET(gltf_node_translation(gd, ni, t), continue);
             CERR_RET(gltf_node_rotation(gd, ni, r), continue);
             CERR_RET(gltf_node_scale(gd, ni, s), continue);
+
+            /* an entity's scale is one number, the node's first: the other two go */
+            if (s[1] != s[0] || s[2] != s[0]) {
+                cresp(const_char) node_name = gltf_node_name(gd, ni);
+
+                warn("'%s': node '%s' scale (%g, %g, %g) isn't uniform: only %g applies\n", name,
+                     IS_CERR(node_name) ? "?" : node_name.val, s[0], s[1], s[2], s[0]);
+            }
 
             e = ref_new(entity3d, .txmodel = txm);
             if (gltf_mesh_fallback(gd, prim_first))
@@ -2478,7 +2519,14 @@ light_done:
 
             scene_spawn_prim_children(scene, e, gd, prim_txms, prims, prim_count, n_phys);
 
+            // scene_bv_update(scene, e);
+
             spawned++;
+
+            /* the game's turn to read what else the node says, see scene_node_spawn_fn */
+            if (!clap_cfg->node_spawn)  continue;
+
+            CERR_RET(clap_cfg->node_spawn(scene, gd, ni, e, clap_cfg->node_spawn_priv), { err = __cerr; break; });
         }
 
         if (!spawned) {
@@ -2503,6 +2551,8 @@ light_done:
     }
 
     mem_free(prim_txms);
+
+    CERR_RET_CERR(err);
 
     dbg("loaded model '%s'\n", name);
 
@@ -2917,7 +2967,7 @@ static void scene_load_step(struct scene *scene)
         if (model && item->prep && !item->prep->delivered)  break;
 
         err = scene_loader_add_next(scene, sl);
-        if (IS_CERR(err))   break;
+        // if (IS_CERR(err))   continue;
 
         if (model) {
             if (scene->ls)  loading_screen_set_progress(scene->ls, (float)sl->nr_models_added / (float)sl->nr_models);
@@ -2925,8 +2975,8 @@ static void scene_load_step(struct scene *scene)
         }
     }
 
-    bool over = IS_CERR(err) || sl->next >= darray_count(sl->items);
-    if (!over)  scene_loader_submit(scene, sl);
+    bool over = /*IS_CERR(err) || */sl->next >= darray_count(sl->items);
+    if (!over && !IS_CERR(err)) scene_loader_submit(scene, sl);
 
     clock_gettime(CLOCK_MONOTONIC, &end);
     timespec_diff(&start, &end, &step);

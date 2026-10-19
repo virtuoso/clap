@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+#include "cerrs.h"
 #include <inttypes.h>
 #include "base64.h"
 #include "datatypes.h"
@@ -1551,9 +1552,18 @@ int gltf_skin_node_to_joint(struct gltf_data *gd, int skin, int node)
     return DA(gd->skins, skin)->nodes[node];
 }
 
+static cerr gltf_mesh_validate(struct gltf_data *gd, int mesh)
+{
+    if (!gltf_vx(gd, mesh))     return CERR_PARSE_FAILED_REASON(.fmt = "mesh %s doesn't contain vertices",  .arg0 = gltf_mesh_name(gd, mesh));
+    if (!gltf_tx(gd, mesh))     return CERR_PARSE_FAILED_REASON(.fmt = "mesh %s doesn't contain UV",        .arg0 = gltf_mesh_name(gd, mesh));
+    if (!gltf_idx(gd, mesh))    return CERR_PARSE_FAILED_REASON(.fmt = "mesh %s doesn't contain indices",   .arg0 = gltf_mesh_name(gd, mesh));
+    return CERR_OK;
+}
+
 /* Give a mesh every attribute a gltf mesh carries, and optimize it */
 static cerr gltf_mesh_fill(struct gltf_data *gd, int mesh, struct mesh *me)
 {
+    CERR_RET_CERR(gltf_mesh_validate(gd, mesh));
     CERR_RET_CERR(mesh_attr_dup(me, MESH_VX, gltf_vx(gd, mesh), gltf_vx_stride(gd, mesh), gltf_nr_vx(gd, mesh)));
     CERR_RET_CERR(mesh_attr_dup(me, MESH_TX, gltf_tx(gd, mesh), gltf_tx_stride(gd, mesh), gltf_nr_tx(gd, mesh)));
     CERR_RET_CERR(mesh_attr_dup(me, MESH_IDX, gltf_idx(gd, mesh), gltf_idx_stride(gd, mesh), gltf_nr_idx(gd, mesh)));

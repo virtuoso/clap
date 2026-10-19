@@ -28,6 +28,7 @@ static struct debug_module debug_enabled[DEBUG_MODULES_MAX] = {
     [DEBUG_SCREEN_RECORDER]     = { .name = "screen recorder" },
     [DEBUG_NAVMESH]             = { .name = "navmesh" },
     [DEBUG_ROAMERS]             = { .name = "roamers" },
+    [DEBUG_GAME]                = { .name = "game" },
 };
 
 debug_module *ui_debug_module(enum debug_modules mod)

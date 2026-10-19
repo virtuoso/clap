@@ -391,6 +391,26 @@ void phys_body_rotate_mat4x4(struct phys_body *body, mat4x4 trs);
 void phys_body_enable(struct phys_body *body, bool enable);
 
 /**
+ * phys_body_set_collides() - take a body out of the world, or put it back
+ * @body:       phys_body object, a body or a collision geometry
+ * @collides:   false: nothing collides with it, and rays and sweeps go
+ *              through it; true: it's back
+ *
+ * Unlike phys_body_enable(), which only puts a body to sleep, this takes it
+ * out of the collisions altogether, for one that's gone for a while: it stays
+ * where it's put, and the simulation leaves it alone.
+ */
+void phys_body_set_collides(struct phys_body *body, bool collides);
+
+/**
+ * phys_body_collides() - whether a body is in the world
+ * @body:   phys_body object
+ *
+ * Return: false while phys_body_set_collides() has it out of the world
+ */
+bool phys_body_collides(struct phys_body *body);
+
+/**
  * phys_body_rotate_xform() - set body's transform rotation
  * @body:   phys_body object
  * @xform:  transform to apply to the body
@@ -500,5 +520,42 @@ void phys_body_push(entity3d *hit, const vec3 velocity, float pusher_mass);
  */
 float phys_body_sweep_capsule(struct phys_body *body, const vec3 delta,
                               vec3 normal, entity3d **hit_entity);
+
+/**
+ * struct phys_pen_params - phys_body_for_each_pen() parameters
+ * @fn:     called on each entity that reaches into the body; returns false
+ *          to stop
+ * @data:   @fn's data
+ * @depth:  how far the body and another geometry have to reach into each
+ *          other to count, at least 0; less than that is a touch
+ */
+typedef struct phys_pen_params {
+    bool    (*fn)(entity3d *e, void *data);
+    void    *data;
+    float   depth;
+} phys_pen_params;
+
+/**
+ * phys_body_for_each_pen() - walk the static geometries that reach into a static trimesh
+ * @_body:  phys_body of a static trimesh geometry
+ * @args:   phys_pen_params initializers
+ *
+ * Static geometries move only when the code moves them, and the physics
+ * steps never collide two of them: this is how the code that moves one finds
+ * out what it ran into. Each entity that reaches into @_body goes to @fn once.
+ * Dynamic bodies and characters don't count, and neither does @_body's own
+ * entity. The depth is measured inward from each one's faces, so a trimesh's
+ * triangles have to face outward, and a trimesh counts when it and @_body each
+ * reach @depth into the other: a sharp edge or a flipped face on one of them
+ * alone doesn't make a hit. Static geometry of other shapes counts when @_body
+ * reaches @depth into it.
+ *
+ * Return: the number of entities that went to @fn; CERR_NOT_FOUND if none
+ *         reaches that deep, CERR_INVALID_ARGUMENTS if @_body is no static
+ *         trimesh or for bad parameters, CERR_NOT_SUPPORTED on the ODE
+ *         backend, which doesn't have it yet
+ */
+#define phys_body_for_each_pen(_body, args...) _phys_body_for_each_pen((_body), &(phys_pen_params){ args })
+cres(size_t) _phys_body_for_each_pen(struct phys_body *body, const phys_pen_params *params);
 
 #endif /* __CLAP_PHYSICS_H__ */

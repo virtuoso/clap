@@ -68,3 +68,24 @@ void phys_limb_place(entity3d *e, int joint, const vec3 offset, vec3 pos, mat4x4
     vec3_dup(pos, p);
     mat4x4_orthonormalize(rot, m);
 }
+
+cerr phys_pen_walk_init(phys_pen_walk *walk, const phys_pen_params *params)
+{
+    if (!params->fn || params->depth < 0.0f)    return CERR_INVALID_ARGUMENTS;
+
+    *walk = (phys_pen_walk){ .params = params };
+
+    return CERR_OK;
+}
+
+bool phys_pen_walk_visit(phys_pen_walk *walk, entity3d *e)
+{
+    walk->count++;
+
+    return walk->params->fn(e, walk->params->data);
+}
+
+cres(size_t) phys_pen_walk_done(const phys_pen_walk *walk)
+{
+    return walk->count ? cres_val(size_t, walk->count) : cres_error(size_t, CERR_NOT_FOUND);
+}

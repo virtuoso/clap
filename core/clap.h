@@ -24,6 +24,8 @@ typedef struct pipeline pipeline;
 struct gltf_data;
 struct mesh;
 struct model3d;
+struct entity3d;
+struct scene;
 
 /**
  * enum clap_os_type - operating system kind
@@ -623,6 +625,9 @@ const char *clap_get_argv(clap_context *ctx, int idx);
  *                      to take over model creation for a mesh (e.g. procedural rigging);
  *                      see gltf_model_make_fn
  * @model_make_priv:    data to be passed into @model_make
+ * @node_spawn:         optional hook the scene loader calls for each entity it spawns from
+ *                      a glTF node, with the node's data at hand; see scene_node_spawn_fn
+ * @node_spawn_priv:    data to be passed into @node_spawn
  * @lut_presets:        a LUT_MAX-terminated array of lut_preset constants to generate on
  *                      initialization
  * @cli_opt_cb:         callback to handle unrecognized command line options
@@ -661,6 +666,10 @@ struct clap_config {
     cerr            (*model_make)(struct gltf_data *gd, int mesh, struct mesh *me,
                                   struct model3d **out, void *priv);
     void            *model_make_priv;
+    /* per-node scene loader hook; see scene_node_spawn_fn */
+    cerr            (*node_spawn)(struct scene *scene, struct gltf_data *gd, int node,
+                                  struct entity3d *e, void *priv);
+    void            *node_spawn_priv;
     lut_preset      *lut_presets;
     cerr            (*cli_opt_cb)(clap_context *ctx, void *data, int *pos);
     clap_cli_opts   cli_opts;

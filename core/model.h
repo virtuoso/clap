@@ -36,6 +36,7 @@ typedef enum joint_type {
     JOINT_FOOT_RIGHT,
     JOINT_HAND_LEFT,
     JOINT_HAND_RIGHT,
+    JOINT_TAIL,
     JOINT_TYPE_MAX,
 } joint_type;
 

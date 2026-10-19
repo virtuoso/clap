@@ -10,6 +10,52 @@
 #include "ui-debug.h"
 
 /*
+ * The tilt with the ground (core/procanim/incline.h): the skeleton's root
+ * follows the ground's normal under the character, as a wheeled body
+ * drives up a ramp, and the vertical in the air. On the lowest overlay:
+ * the head's look and the feet go over it, aiming and planting from the
+ * tilted pose.
+ */
+/** CHARACTER_INCLINE_LAYER - the overlay the skeleton tilts on */
+#define CHARACTER_INCLINE_LAYER 1
+
+static const incline_config character_incline_cfg = {
+    .joint  = -1,
+    .rate   = 30.0f,    /* 1/s: most of the way in a tenth of a second, over the normal's jump at a ramp's edge */
+};
+
+static void character_incline_start(struct character *ch)
+{
+    entity3d *e = ch->entity;
+    model3d *m = e->txmodel->model;
+    animator_t *a = entity3d_animator(e);
+
+    if (!e->joints)     return;
+
+    anim_t ani = CRES_RET(anim_lib_pose(model3d_anim_lib(m), &incline_pose_ops, &character_incline_cfg), return);
+
+    CERR_RET(animator_bind(a, ani, &ch->incline), return);
+    CERR_RET(incline_mask(&character_incline_cfg, a, m, CHARACTER_INCLINE_LAYER), return);
+    CERR_RET(animator_play(a, ani, .layer = CHARACTER_INCLINE_LAYER), return);
+}
+
+/*
+ * The tilt goes on the first time it's wanted, since the scene sets
+ * tilts_with_ground after it makes the character; from then on it follows
+ * the ground, or the vertical in the air or once it's no longer wanted
+ */
+static void character_incline_update(struct character *ch)
+{
+    cres(anim_t) playing = animator_playing(entity3d_animator(ch->entity), CHARACTER_INCLINE_LAYER);
+
+    if (IS_CERR(playing) && !ch->tilts_with_ground) return;
+    if (IS_CERR(playing))                           character_incline_start(ch);
+
+    bool grounded = ch->tilts_with_ground && !ch->airborne;
+    vec3_dup(ch->incline.normal, grounded ? ch->normal : (vec3){ 0.0f, 1.0f, 0.0f });
+}
+
+/*
  * The head follows a point of interest: the look-at pose class on an
  * overlay masked to the head's subtree, over whatever the body plays.
  * One configuration for every model with a head joint: the joint is
@@ -17,7 +63,7 @@
  * defines its own (the scene's "look") plays that instead.
  */
 /** CHARACTER_LOOK_LAYER - the overlay the head looks around on */
-#define CHARACTER_LOOK_LAYER    1
+#define CHARACTER_LOOK_LAYER    2
 /** CHARACTER_LOOK_RANGE - meters; further than this, the head rests */
 #define CHARACTER_LOOK_RANGE    12.0f
 /** CHARACTER_LOOK_HEAD - of the other's height above its center: the face */
@@ -105,7 +151,7 @@ static void character_limbs_start(struct character *ch)
  * the lowest shortfall so that foot can reach. For models with clips: a
  * rig (the golem's gait) places its own feet.
  */
-#define CHARACTER_FOOT_LAYER    2
+#define CHARACTER_FOOT_LAYER    3
 #define CHARACTER_FOOT_JOINTS   3
 
 static const plant_config character_plant_cfg = {
@@ -146,6 +192,118 @@ static void character_feet_start(struct character *ch)
     CERR_RET(animator_bind(a, ani, p), return);
     CERR_RET(plant_mask(p, a, CHARACTER_FOOT_LAYER), return);
     CERR_RET(animator_play(a, ani, .layer = CHARACTER_FOOT_LAYER), return);
+}
+
+/*
+ * The tail (core/procanim/trail.h): the chain from the joint the model maps
+ * ("armature": "tail") down, dragged over the ground behind the character
+ * the way a power cord is, on an overlay over the tilt.
+ */
+#define CHARACTER_TAIL_LAYER    4
+
+static const trail_config character_tail_cfg = {
+    .joint      = -1,
+    .joint_type = JOINT_TAIL,
+    .radius     = 0.01f,    /* lies just over the ground: a cord's half thickness */
+};
+
+static void character_tail_start(struct character *ch)
+{
+    entity3d *e = ch->entity;
+    model3d *m = e->txmodel->model;
+    animator_t *a = entity3d_animator(e);
+    cres(joint_type) tail = model3d_get_joint(m, JOINT_TAIL);
+
+    if (!e->joints || IS_CERR(tail))    return;
+
+    anim_t ani = CRES_RET(anim_lib_pose(model3d_anim_lib(m), &trail_pose_ops, &character_tail_cfg), return);
+
+    CERR_RET(animator_bind(a, ani, &ch->tail), return);
+    CERR_RET(trail_mask(&character_tail_cfg, &ch->tail, a, m, CHARACTER_TAIL_LAYER), return);
+    CERR_RET(animator_play(a, ani, .layer = CHARACTER_TAIL_LAYER), return);
+}
+
+/*
+ * The head bob (core/procanim/nod.h): for a character that bobs_head, the
+ * head nods as it goes, as wide and as quick as how hard it's driven makes
+ * it, and settles when it stops; on the top overlay, over the look-at, which
+ * it nods on top of.
+ */
+#define CHARACTER_NOD_LAYER     5
+
+static const nod_config character_nod_cfg = {
+    .joint      = -1,
+    .joint_type = JOINT_HEAD,
+    .angle      = 0.06f,    /* radians: a slight bob, some 3.5 degrees either way */
+    .frequency  = 2.5f,     /* nods per second at full speed */
+    .rate       = 6.0f,     /* 1/s: it eases in and out over a few tenths of a second */
+};
+
+static void character_nod_start(struct character *ch)
+{
+    entity3d *e = ch->entity;
+    model3d *m = e->txmodel->model;
+    animator_t *a = entity3d_animator(e);
+
+    if (!e->joints)     return;
+
+    anim_t ani = CRES_RET(anim_lib_pose(model3d_anim_lib(m), &nod_pose_ops, &character_nod_cfg), return);
+
+    CERR_RET(animator_bind(a, ani, &ch->nod), return);
+    CERR_RET(nod_mask(&character_nod_cfg, a, m, CHARACTER_NOD_LAYER), return);
+    CERR_RET(animator_play(a, ani, .layer = CHARACTER_NOD_LAYER), return);
+}
+
+/*
+ * The bob goes on the first time it's wanted, since the scene sets bobs_head
+ * after it makes the character; from then on it follows how hard the
+ * character is driven (the motion is the input's, at lin_speed for full),
+ * and settles in the air or once it's no longer wanted
+ */
+static void character_nod_update(struct character *ch)
+{
+    cres(anim_t) playing = animator_playing(entity3d_animator(ch->entity), CHARACTER_NOD_LAYER);
+
+    if (IS_CERR(playing) && !ch->bobs_head) return;
+    if (IS_CERR(playing))                   character_nod_start(ch);
+
+    bool going = ch->bobs_head && !ch->airborne && ch->lin_speed > 0.0f;
+    ch->nod.amount = going ? vec3_len(ch->motion) / ch->lin_speed : 0.0f;
+}
+
+/*
+ * The hands clapped (core/procanim/handclap.h), when character_handclap()
+ * asks: the class goes on the first time it's asked for, so a character that
+ * never claps doesn't carry it, on the top overlay
+ */
+#define CHARACTER_HANDCLAP_LAYER    6
+
+static const handclap_config character_handclap_cfg = {
+    .duration   = 0.45f,    /* seconds, together and back apart */
+    .reach      = 0.85f,    /* of the way to meeting midway: the hands' own thickness short */
+};
+
+cerr character_handclap(struct character *ch)
+{
+    entity3d *e = ch->entity;
+    model3d *m = e->txmodel->model;
+    animator_t *a = entity3d_animator(e);
+    cres(anim_t) playing = animator_playing(a, CHARACTER_HANDCLAP_LAYER);
+
+    if (IS_CERR(playing)) {
+        if (!e->joints)     return CERR_NOT_FOUND;
+
+        anim_t ani = CRES_RET_CERR(anim_lib_pose(model3d_anim_lib(m), &handclap_pose_ops, &character_handclap_cfg));
+
+        CERR_RET_CERR(animator_bind(a, ani, &ch->handclap));
+        CERR_RET_CERR(handclap_mask(&ch->handclap, a, m, CHARACTER_HANDCLAP_LAYER));
+        CERR_RET_CERR(animator_play(a, ani, .layer = CHARACTER_HANDCLAP_LAYER));
+    }
+    if (ch->handclap.go || ch->handclap.start >= 0.0)   return CERR_INVALID_OPERATION;
+
+    ch->handclap.go = true;
+
+    return CERR_OK;
 }
 
 /*
@@ -593,6 +751,65 @@ rotate:
 }
 
 /*
+ * What the character stands on carries it: character_anchor() notes where it
+ * stands and which way it faces, in the ground's model space, and once the
+ * ground has moved, character_ride() sweeps it back to that spot, the way its
+ * own motion goes, so what's in the way stops it; and if it turns with the
+ * ground, it turns it about the vertical to face that way again
+ */
+static void character_anchor(struct character *ch)
+{
+    struct phys_body *body = ch->entity->phys_body;
+    entity3d *ground = ch->old_collision;
+
+    if (!ground || !body)   return;
+
+    vec3 pos;
+    phys_body_position(body, pos);
+
+    vec4 world = { pos[0], pos[1], pos[2], 1.0f }, local;
+    mat4x4_mul_vec4(local, ground->inverse_mx, world);
+    vec3_dup(ch->ground_pos, local);
+
+    vec4 facing = { 0.0f, 0.0f, 1.0f, 0.0f };
+    transform_rotate_vec3(&ch->entity->xform, facing);
+    mat4x4_mul_vec4(local, ground->inverse_mx, facing);
+    vec3_dup(ch->ground_dir, local);
+
+    ch->ground_seq = ground->seq;
+}
+
+static void character_ride(struct character *ch)
+{
+    struct phys_body *body = ch->entity->phys_body;
+    entity3d *ground = ch->old_collision;
+
+    if (!ground || !body || !phys_body_collides(body) || ground->seq == ch->ground_seq)  return;
+
+    vec4 local = { ch->ground_pos[0], ch->ground_pos[1], ch->ground_pos[2], 1.0f }, world;
+    vec3 pos, delta;
+
+    mat4x4_mul_vec4(world, ground->mx, local);
+    phys_body_position(body, pos);
+    vec3_sub(delta, world, pos);
+    character_sweep_delta(body, delta, -1.0f, true, (vec3){}, 0.0f);
+
+    if (ch->turns_with_ground) {
+        vec4 dir = { ch->ground_dir[0], ch->ground_dir[1], ch->ground_dir[2], 0.0f }, to;
+        vec3 facing = { 0.0f, 0.0f, 1.0f };
+
+        mat4x4_mul_vec4(to, ground->mx, dir);
+        transform_rotate_vec3(&ch->entity->xform, facing);
+
+        /* the angle from the facing to the ground's turn of it, both seen from above */
+        float angle = atan2f(facing[2] * to[0] - facing[0] * to[2], facing[0] * to[0] + facing[2] * to[2]);
+        transform_rotate_axis(&ch->entity->xform, (vec3){ 0.0f, 1.0f, 0.0f }, angle, false);
+    }
+
+    ch->ground_seq = ground->seq;
+}
+
+/*
  * State machine (gpsm.h). Every callback gets the character as @priv. Guards
  * refuse or redirect a transition before anything is committed; enters push
  * the animations, and can land on a different state by returning it.
@@ -781,6 +998,12 @@ void character_move(struct character *ch, struct scene *s)
 {
     struct phys_body *body = ch->entity->phys_body;
 
+    /* out of the world (phys_body_set_collides()), it has nothing to stand on or move through: it holds still */
+    if (body && !phys_body_collides(body))  return;
+
+    /* the ground may have moved after character_update(): go along before looking down */
+    character_ride(ch);
+
     if (body) {
         ch->airborne = !phys_body_ground_collide(body, !ch->airborne);
     } else {
@@ -885,14 +1108,6 @@ void character_move(struct character *ch, struct scene *s)
         goto out;
     }
 
-    if (ch->old_collision != ch->collision) {
-        if (ch->old_collision && ch->old_collision->disconnect)
-            ch->old_collision->disconnect(ch->old_collision, ch->entity, ch->old_collision->connect_priv);
-        if (ch->collision && ch->collision->connect)
-            ch->collision->connect(ch->collision, ch->entity, ch->collision->connect_priv);
-        ch->old_collision = ch->collision;
-    }
-
 motion:
     struct motionctl *mctl = &s->mctl;
     vec3_dup(ch->motion, (vec3){ mctl->dx, 0.0, mctl->dz });
@@ -944,6 +1159,23 @@ motion:
     }
 
 out:
+    /*
+     * In the air, the character stands on nothing: what it took off from
+     * hears that it left, and what it lands on, the same entity or not,
+     * hears that it came
+     */
+    entity3d *ground = ch->airborne ? nullptr : ch->collision;
+    if (ch->old_collision != ground) {
+        if (ch->old_collision && ch->old_collision->disconnect)
+            ch->old_collision->disconnect(ch->old_collision, ch->entity, ch->old_collision->connect_priv);
+        if (ground && ground->connect)
+            ground->connect(ground, ch->entity, ground->connect_priv);
+        ch->old_collision = ground;
+    }
+
+    /* the character's own motion is done: the ground's next motion carries it from here */
+    character_anchor(ch);
+
     if (scene_control_character(s) == ch)
         character_debug(ch);
 }
@@ -1013,6 +1245,9 @@ static int character_update(entity3d *e, void *data)
         entity3d_position(e, pos);
     }
 
+    /* the ground's update may have gone first and moved it: go along now, not a frame behind */
+    character_ride(c);
+
     if (entity3d_matches(e, ENTITY3D_HAS_PHYSICS)) {
         phys_body_update(e);
         /*
@@ -1035,6 +1270,8 @@ static int character_update(entity3d *e, void *data)
     character_motion_reset(c, s);
     character_look_pick(c, s);
     character_feet_update(c);
+    character_incline_update(c);
+    character_nod_update(c);
 
     return c->orig_update(e, data);
 }
@@ -1066,6 +1303,7 @@ static cerr character_make(struct ref *ref, void *_opts)
     character_look_start(c);
     character_limbs_start(c);
     character_feet_start(c);
+    character_tail_start(c);
 
     return CERR_OK;
 }

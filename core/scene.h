@@ -49,6 +49,7 @@ struct scene {
 #ifndef CONFIG_FINAL
     entity_inspector    entity_inspector;
 #endif /* CONFIG_FINAL */
+    vec3                bv[2];
     JsonNode            *json_root;
     char                *file_name;
     navmesh             *nm;
@@ -104,6 +105,7 @@ navmesh *scene_navmesh(struct scene *scene);
 cerr scene_init(struct scene *scene, struct clap_context *ctx);
 void scene_done(struct scene *scene);
 void scene_save(struct scene *scene, const char *name);
+void scene_bv_update(struct scene *s, entity3d *e);
 
 /**
  * scene_load() - load a scene file before returning
@@ -164,6 +166,30 @@ typedef void (*scene_loaded_fn)(struct scene *scene, cerr err, void *data);
  *         CERR_SCENE_NOT_LOADED if @name doesn't read or parse; CERR_NOMEM
  */
 cerr scene_load_async(struct scene *scene, const char *name, scene_loaded_fn done, void *data);
+
+struct gltf_data;
+
+/**
+ * typedef scene_node_spawn_fn - a glTF node's entity is in the scene
+ * @scene:  the scene
+ * @gd:     the model's glTF, for gltf_node_name() and the
+ *          gltf_node_extras_*() accessors; freed after the model is in
+ * @node:   the node's index in @gd
+ * @e:      the entity the node spawned, placed, with its physics
+ * @priv:   clap_config::node_spawn_priv
+ *
+ * A scene file's model entry without "entity" or "character" lists spawns
+ * an entity for every glTF node that uses the model's mesh; the scene
+ * loader calls clap_config::node_spawn for each of them, as soon as the
+ * entity is in place. This is the game's one chance to read what the node
+ * carries beyond what the loader takes from it: its name and its extras.
+ * Mirror this signature in struct clap_config::node_spawn; clap.h spells it
+ * out to avoid pulling in scene.h.
+ * Context: the main thread, inside scene_load() or scene_update()
+ * Return: CERR_OK, or an error that fails the model entry
+ */
+typedef cerr (*scene_node_spawn_fn)(struct scene *scene, struct gltf_data *gd, int node, entity3d *e,
+                                    void *priv);
 
 /**
  * scene_loader_pool() - the loader thread, for a game's own loading work

@@ -16,8 +16,8 @@ DEFINE_CLEANUP(b3Vec3, if (*p) mem_free(*p);)
 /*
  * Collision filter categories. Every shape collides with everything
  * (Box3D skips static-static pairs on its own, which matches the ODE
- * backend's space setup); the categories only document intent and leave
- * room for future mask tuning.
+ * backend's space setup); the categories document intent, and the queries
+ * that look for static geometry only mask by them.
  */
 #define PHYS_CAT_STATIC     (1ull << 0)
 #define PHYS_CAT_DYNAMIC    (1ull << 1)
@@ -249,6 +249,18 @@ void phys_body_move(struct phys_body *body, const vec3 delta)
     b3Body_SetTransform(body->body_id,
                         (b3Pos){ pos.x + delta[0], pos.y + delta[1], pos.z + delta[2] },
                         b3Body_GetRotation(body->body_id));
+}
+
+/* A disabled body is out of the broadphase, so the shape queries don't see it either */
+void phys_body_set_collides(struct phys_body *body, bool collides)
+{
+    if (collides)   b3Body_Enable(body->body_id);
+    else            b3Body_Disable(body->body_id);
+}
+
+bool phys_body_collides(struct phys_body *body)
+{
+    return b3Body_IsEnabled(body->body_id);
 }
 
 void phys_body_enable(struct phys_body *body, bool enable)
@@ -603,6 +615,152 @@ float phys_body_sweep_capsule(struct phys_body *body, const vec3 delta,
     if (hit_entity)     *hit_entity = c.hit;
 
     return c.frac;
+}
+
+/**
+ * struct pen_mesh - a trimesh where it stands, for phys_body_for_each_pen()
+ * @data:   its mesh
+ * @rot:    its orientation
+ * @offset: its position, relative to the queries' origin
+ * @scale:  its mesh scale
+ */
+struct pen_mesh {
+    const b3MeshData    *data;
+    b3Quat              rot;
+    b3Vec3              offset;
+    b3Vec3              scale;
+};
+
+/**
+ * struct pen_ctx - a phys_body_for_each_pen() of a static trimesh
+ * @walk:   the walk
+ * @body:   the trimesh's phys_body
+ * @mesh:   the trimesh, whose position is the queries' origin
+ * @filter: static geometry only
+ * @xform:  the trimesh's world transform
+ */
+struct pen_ctx {
+    phys_pen_walk       walk;
+    struct phys_body    *body;
+    struct pen_mesh     mesh;
+    b3QueryFilter       filter;
+    b3WorldTransform    xform;
+};
+
+/*
+ * Box3D's overlap tests take convex shapes, which a trimesh isn't, and only
+ * tell touching (within a tenth of the linear slop) from apart. So test with
+ * each of a trimesh's triangles, moved @depth inward along its normal and
+ * shrunk about its incenter, which moves its edges @depth inward, too: then
+ * only geometry that reaches @depth into the trimesh overlaps it. A triangle
+ * narrower than that shrinks to its incenter. At an edge sharper than 45
+ * degrees, that takes the triangle out through the face across the edge,
+ * which pen_cb() makes up for.
+ * Return: how many of @points the triangle takes, relative to the queries'
+ * origin; 0 for a degenerate triangle
+ */
+static int pen_triangle(const struct pen_mesh *m, int i, float depth, b3Vec3 points[3])
+{
+    const b3Vec3 *vx = b3GetMeshVertices(m->data);
+    const b3MeshTriangle *tri = b3GetMeshTriangles(m->data) + i;
+
+    b3Vec3 v[3] = {
+        b3Add(m->offset, b3RotateVector(m->rot, b3Mul(m->scale, vx[tri->index1]))),
+        b3Add(m->offset, b3RotateVector(m->rot, b3Mul(m->scale, vx[tri->index2]))),
+        b3Add(m->offset, b3RotateVector(m->rot, b3Mul(m->scale, vx[tri->index3]))),
+    };
+
+    /* outward by the winding, twice the triangle's area long */
+    b3Vec3 n = b3Cross(b3Sub(v[1], v[0]), b3Sub(v[2], v[0]));
+    float twice_area = b3Length(n);
+    if (twice_area <= 0.0f)     return 0;
+
+    /* each side is the one across from the vertex of the same index */
+    float side[3] = { b3Length(b3Sub(v[2], v[1])), b3Length(b3Sub(v[0], v[2])), b3Length(b3Sub(v[1], v[0])) };
+    float perimeter = side[0] + side[1] + side[2];
+    float inradius = twice_area / perimeter;
+    float shrink = fmaxf(inradius - depth, 0.0f) / inradius;
+    b3Vec3 incenter = b3MulSV(1.0f / perimeter, b3Add(b3Add(b3MulSV(side[0], v[0]), b3MulSV(side[1], v[1])),
+                                                      b3MulSV(side[2], v[2])));
+    b3Vec3 inward = b3MulSV(-depth / twice_area, n);
+
+    for (int j = 0; j < 3; j++)
+        points[j] = b3Add(b3MulAdd(incenter, shrink, b3Sub(v[j], incenter)), inward);
+
+    return shrink > 0.0f ? 3 : 1;
+}
+
+/* Whether any of @m's inset triangles overlaps the shapes of @body, which stands at @xform */
+static bool pen_mesh_reaches(const struct pen_ctx *c, const struct pen_mesh *m, b3BodyId body, b3WorldTransform xform)
+{
+    for (int i = 0; i < m->data->triangleCount; i++) {
+        b3Vec3 points[3];
+        b3ShapeProxy proxy = { .points = points, .count = pen_triangle(m, i, c->walk.params->depth, points) };
+
+        if (proxy.count && b3Body_OverlapShape(body, c->xform.p, &proxy, c->filter, xform))   return true;
+    }
+
+    return false;
+}
+
+/*
+ * A static shape near the trimesh goes to the walk if the trimesh reaches into
+ * it and, if it's a trimesh, too, it reaches back: then a sharp edge or a
+ * flipped face of one of them alone doesn't make a hit
+ */
+static bool pen_cb(b3ShapeId shape_id, void *data)
+{
+    struct pen_ctx *c = data;
+    entity3d *other = b3Shape_GetUserData(shape_id);
+
+    if (!other || other == c->body->entity) return true;
+
+    b3BodyId other_body = b3Shape_GetBody(shape_id);
+    b3WorldTransform other_xform = b3Body_GetTransform(other_body);
+
+    if (!pen_mesh_reaches(c, &c->mesh, other_body, other_xform))    return true;
+
+    if (b3Shape_GetType(shape_id) == b3_meshShape) {
+        b3Mesh mesh = b3Shape_GetMesh(shape_id);
+        struct pen_mesh other_mesh = {
+            .data   = mesh.data,
+            .rot    = other_xform.q,
+            .offset = b3SubPos(other_xform.p, c->xform.p),
+            .scale  = mesh.scale,
+        };
+
+        if (!pen_mesh_reaches(c, &other_mesh, c->body->body_id, c->xform))  return true;
+    }
+
+    return phys_pen_walk_visit(&c->walk, other);
+}
+
+/*
+ * The broadphase finds the static shapes near the trimesh, each of them once,
+ * and pen_cb() tells which of them reach into it
+ */
+cres(size_t) _phys_body_for_each_pen(struct phys_body *body, const phys_pen_params *params)
+{
+    if (phys_body_has_body(body) || !body->mesh_data)   return cres_error(size_t, CERR_INVALID_ARGUMENTS);
+
+    b3WorldTransform xform = b3Body_GetTransform(body->body_id);
+    struct pen_ctx c = {
+        .body   = body,
+        .mesh   = {
+            .data   = body->mesh_data,
+            .rot    = xform.q,
+            .scale  = b3Shape_GetMesh(body->shape_id).scale,
+        },
+        .filter = b3DefaultQueryFilter(),
+        .xform  = xform,
+    };
+
+    CERR_RET_SCALAR(phys_pen_walk_init(&c.walk, params), size_t);
+
+    c.filter.maskBits = PHYS_CAT_STATIC;
+    b3World_OverlapAABB(body->phys->world, b3Shape_GetAABB(body->shape_id), c.filter, pen_cb, &c);
+
+    return phys_pen_walk_done(&c.walk);
 }
 
 float phys_body_get_mass(struct phys_body *body)

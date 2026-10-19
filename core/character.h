@@ -7,8 +7,12 @@
 #include "model.h"
 #include "ik.h"
 #include "physics.h"
+#include "procanim/handclap.h"
+#include "procanim/incline.h"
 #include "procanim/lookat.h"
+#include "procanim/nod.h"
 #include "procanim/plant.h"
+#include "procanim/trail.h"
 #include "scene.h"
 
 typedef enum character_state {
@@ -58,15 +62,33 @@ struct character {
     } history;
     /* the head's look-at binding, for a model with a head joint */
     lookat_t look;
+    /* the skeleton's tilt with the ground, for a character that tilts_with_ground */
+    incline_t incline;
+    /* the hands clapped, once character_handclap() asks */
+    handclap_t handclap;
     /* the feet planted on the ground under them, for a model with foot joints: the leg chains and the binding */
     ik_chain foot_chain[2];
     plant_t  plant;
+    /* the tail dragged behind, for a model with a tail joint */
+    trail_t  tail;
+    /* the head bobbing as it goes, for a character that bobs_head */
+    nod_t    nod;
+    /* where the character stands and which way it faces in old_collision's model space, when its seq was ground_seq */
+    vec3    ground_pos;
+    vec3    ground_dir;
+    uint16_t ground_seq;
     bool    jump;
     bool    jump_held;
     bool    airborne;
     bool    can_dash;
     bool    can_jump;
     bool    can_levitate;
+    /* the ground turns the character with it, not just carries it: see character_ride() */
+    bool    turns_with_ground;
+    /* the ground tilts the skeleton with it: see character_incline_update() */
+    bool    tilts_with_ground;
+    /* the head bobs as the character goes: see character_nod_update() */
+    bool    bobs_head;
     /* the planting is faded out: the character is in the air */
     bool     plant_off;
 };
@@ -137,5 +159,18 @@ void character_set_moved(struct character *c);
 void character_handle_input(struct character *ch, struct scene *s, struct message *m);
 void character_move(struct character *ch, struct scene *s);
 void character_stop(struct character *c, struct scene *s);
+
+/**
+ * character_handclap() - clap the character's hands, once
+ * @ch:     the character
+ *
+ * The hands the model maps ("armature": "hand_left", "hand_right") swing
+ * together off what they hang from and back apart, over whatever the arms
+ * are doing; it starts at the next update.
+ * Return: CERR_OK; CERR_NOT_FOUND for a model without both hands,
+ *         CERR_INVALID_OPERATION while a clap is under way, or the animator's
+ *         errors
+ */
+cerr character_handclap(struct character *ch);
 
 #endif /* __CLAP_CHARACTER_H__ */

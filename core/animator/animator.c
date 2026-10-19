@@ -54,6 +54,7 @@ void animator_done(animator_t *a)
     animator_unpin(a, -1);
     darray_for_each(l, a->layers) {
         if (l->scratch)     mem_free(l->scratch);
+        if (l->held)        mem_free(l->held);
         if (l->mask.size)   bitmap_done(&l->mask);
     }
     darray_clearout(a->bindings);
@@ -716,6 +717,15 @@ static void animator_idle(animator_t *a, anim_lib_t *lib)
     CERR_RET(animator_play(a, idle, .repeat = true, .phase = drand48()), return);
 }
 
+/* the joints as the base left them, into its @held; none on a failed allocation */
+static void base_hold(animator_t *a, struct anim_layer *l)
+{
+    unsigned int nr = nr_joints(a);
+
+    if (!l->held)   l->held = mem_alloc(sizeof(struct joint), .nr = nr);
+    if (l->held)    joints_copy_trs(l->held, a->e->joints, nr);
+}
+
 /* an overlay is about to evaluate */
 static bool overlays_running(animator_t *a)
 {
@@ -750,7 +760,8 @@ void animator_update(animator_t *a, struct scene *s)
 
     double now = clap_get_current_time(s->clap_ctx);
     unsigned int nr = e->joints ? nr_joints(a) : 0;
-    bool posed = false;
+    bool overlays = nr && overlays_running(a);
+    bool posed = false, base_wrote = false;
 
     /* a fading pin release: the weight the pin-honouring classes blend by this frame */
     if (a->pins.size && a->pin_fade_dur > 0.0) {
@@ -759,12 +770,8 @@ void animator_update(animator_t *a, struct scene *s)
         if (a->pin_weight <= 0.0)       animator_unpin(a, -1);
     }
 
-    /*
-     * Nothing on the base: the overlays go over the bind pose. With no clip
-     * rewriting the joints every frame, they would go over their own last
-     * result, and a look-at's turn would compound
-     */
-    if (!l->active && nr && overlays_running(a))    entity3d_pose_reset(e);
+    /* nothing on the base: the overlays go over the bind pose */
+    if (!l->active && overlays)     entity3d_pose_reset(e);
 
     /* the base: into the joints, cross-faded from the outgoing element while that runs */
     if (l->active && !l->ended) {
@@ -772,7 +779,8 @@ void animator_update(animator_t *a, struct scene *s)
         struct anim_def *def = layer_step(a, l, now, s, e->joints, true, &repeat, &over);
 
         if (def) {
-            posed |= def->kind != ANIM_HOLD;
+            base_wrote = def->kind != ANIM_HOLD;
+            posed |= base_wrote;
             if (over)   layer_advance(a, l, def, repeat, now, e->joints, false);
         }
     }
@@ -786,8 +794,25 @@ void animator_update(animator_t *a, struct scene *s)
         } else {
             fading_step(a, l, now);
             for (unsigned int j = 0; j < nr; j++)   joint_blend(&e->joints[j], &l->scratch[j], &e->joints[j], (float)w);
-            posed = true;
+            posed = base_wrote = true;
         }
+    }
+
+    /*
+     * With no clip rewriting the joints every frame, the overlays would go
+     * over their own last result, and a look-at's turn or a tilt would
+     * compound frame after frame. A base that holds (its play ended, or a
+     * hold plays) holds the pose it last wrote, not the joints as the
+     * overlays left them: it is kept from the overlays' first frame on, and
+     * on every base write after that.
+     */
+    bool base_set = base_wrote || (overlays && !l->active);
+
+    if (overlays && !base_set && l->held) {
+        joints_copy_trs(e->joints, l->held, nr);
+        posed = true;
+    } else if (overlays || (base_set && l->held)) {
+        base_hold(a, l);
     }
 
     /* the overlays: each into its scratch copy of the pose so far, then blended in by weight */

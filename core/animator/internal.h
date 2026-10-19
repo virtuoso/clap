@@ -103,6 +103,8 @@ struct anim_transition {
  * @mask:           the joints an overlay writes; size 0: all of them
  * @scratch:        nr_joints, allocated on first use: an overlay's
  *                  evaluation buffer, the base's outgoing pose in a fade
+ * @held:           nr_joints, the base's, allocated when the overlays first
+ *                  run: its own pose, which they go over while it holds
  * @fading:         the base's outgoing element still evaluates into
  *                  @scratch and blends with the incoming one
  * @fade_start:     the fade's clock; negative until the first update
@@ -129,6 +131,7 @@ struct anim_layer {
     double                  weight_rate;
     struct bitmap           mask;
     struct joint            *scratch;
+    struct joint            *held;
     double                  fade_start;
     double                  fade_dur;
     anim_t                  fading_ani;

@@ -64,6 +64,7 @@ enum debug_modules {
     DEBUG_SCREEN_RECORDER,
     DEBUG_NAVMESH,
     DEBUG_ROAMERS,
+    DEBUG_GAME,     /* the application's own window */
     DEBUG_MODULES_MAX,
 };
 
