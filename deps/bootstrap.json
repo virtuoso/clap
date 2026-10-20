@@ -37,7 +37,7 @@
     },
     "postprocess": {
         "type": "patch",
-        "file": "miniaudio-stb_vorbis.patch",
+        "file": "miniaudio.patch",
         "pnum": 1
     }
 },
