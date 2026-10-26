@@ -81,6 +81,16 @@ static void menu_close(struct ui *ui)
     ui->menu.depth = 0;
 }
 
+static void __menu_restart(struct ui *ui, const ui_menu_item *item)
+{
+    if (!ui->menu.restart)  return;
+
+    /* unpaused before the restart: a restart that loads keeps the pause ui_state_set_loading() starts */
+    menu_close(ui);
+    ui_modality_send(ui);
+    ui->menu.restart(ui->clap_ctx, ui->menu.restart_data);
+}
+
 #ifndef CONFIG_FINAL
 static void __menu_devel(struct ui *ui, const ui_menu_item *item)
 {
@@ -180,6 +190,7 @@ static const struct ui_widget_builder default_uwb = {
 /* Default in-game menu */
 static const ui_menu_item default_in_game_root = UI_MENU_GROUP(
     NULL, &default_uwb,
+    UI_MENU_ITEM("Restart",         __menu_restart),
 #ifndef CONFIG_FINAL
     UI_MENU_ITEM("Devel",           __menu_devel),
 #endif /* CONFIG_FINAL */
@@ -328,6 +339,8 @@ cerr ui_menus_init(struct ui *ui,
     ui->menu.loading_cb_data = start_cfg ? start_cfg->loading_cb_data : NULL;
     ui->menu.credits         = start_cfg ? start_cfg->credits         : NULL;
     ui->menu.nr_credits      = start_cfg ? start_cfg->nr_credits      : 0;
+    ui->menu.restart         = in_game_cfg ? in_game_cfg->restart      : nullptr;
+    ui->menu.restart_data    = in_game_cfg ? in_game_cfg->restart_data : nullptr;
     ui->menu.widget = NULL;
     ui->menu.depth  = 0;
 
@@ -361,6 +374,8 @@ void ui_menus_done(struct ui *ui)
     ui->menu.loading_cb_data = NULL;
     ui->menu.credits         = NULL;
     ui->menu.nr_credits      = 0;
+    ui->menu.restart         = nullptr;
+    ui->menu.restart_data    = nullptr;
 }
 
 void ui_menus_ascend(struct ui *ui)
