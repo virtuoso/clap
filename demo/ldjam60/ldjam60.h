@@ -202,6 +202,14 @@ cerr switches_node_spawn(struct scene *scene, struct gltf_data *gd, int node, en
  */
 cerr switches_resolve(switches *sws);
 
+/**
+ * switches_reset() - put the rotatables back the way the scene sets them
+ * @sws:    the switches
+ *
+ * Reset all rotatables at once, the way rotatable_reset() does it.
+ */
+void switches_reset(switches *sws);
+
 #ifndef CONFIG_FINAL
 /**
  * switches_debug() - the switches' debug window
@@ -321,6 +329,17 @@ cerr clappy_init(clappy *cl, struct scene *scene);
  *         synth setter
  */
 cerr clappy_update(clappy *cl, struct scene *scene);
+
+/**
+ * clappy_restart() - revert clappy back where he started
+ * @cl:     clappy
+ * @scene:  the scene
+ *
+ * Similarly to the death fall, only revert clappy to where he started:
+ * whole again if he's in pieces, and still. Does  nothing before
+ * clappy_init().
+ */
+void clappy_restart(clappy *cl, struct scene *scene);
 
 /**
  * clappy_done() - silence clappy's motors and drop his pieces

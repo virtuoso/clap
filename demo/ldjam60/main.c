@@ -135,6 +135,19 @@ static void loading_start(clap_context *ctx, void *data)
     if (IS_CERR(err))   scene_loaded(s, err, data);
 }
 
+/*
+ * "Restart", for a player who's stuck or wants a rematch: the rotatables
+ * go back to the way the scene set them up, and clappy where he originally
+ * spawned
+ */
+static void restart(clap_context *ctx, void *data)
+{
+    struct game *game = data;
+
+    switches_reset(&game->switches);
+    clappy_restart(&game->clappy, clap_get_scene(ctx));
+}
+
 static EMSCRIPTEN_KEEPALIVE void render_frame(clap_context *ctx, void *data)
 {
     struct scene *s = clap_get_scene(ctx);
@@ -217,7 +230,7 @@ int main(int argc, char **argv, char **envp)
         .phys           = 1,
         .graphics       = 1,
         .ui             = 1,
-        .ui_menu        = { .enable = true },
+        .ui_menu        = { .enable = true, .restart = restart, .restart_data = &game },
         .ui_start_menu  = { .enable = true, .loading_cb = loading_start, .loading_cb_data = &game },
         .settings       = 1,
         .title          = CLAP_EXECUTABLE_TITLE,

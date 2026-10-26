@@ -339,8 +339,8 @@ static bool clappy_has_ground(clappy *cl, const vec3 pos)
     return phys_ray_cast(e, (vec3){ pos[0], pos[1] + height, pos[2] }, (vec3){ 0.0f, -1.0f, 0.0f }, &dist);
 }
 
-/* Clappy whole again: his pieces gone, him back at @safe, or where he started if that has gone */
-static void clappy_respawn(clappy *cl, struct scene *scene)
+/* Clappy whole again: his pieces gone, if he's in pieces, and him back at @at */
+static void clappy_respawn_at(clappy *cl, struct scene *scene, const vec3 at)
 {
     struct character *c = cl->c;
     entity3d *e = c->entity, **part, **piece;
@@ -351,7 +351,7 @@ static void clappy_respawn(clappy *cl, struct scene *scene)
     darray_clearout(cl->pieces);
     darray_for_each(part, cl->parts)    entity3d_set(*part, ENTITY3D_VISIBLE, nullptr);
 
-    vec3_dup(to, clappy_has_ground(cl, cl->safe) ? cl->safe : cl->start);
+    vec3_dup(to, at);
     entity3d_position(e, to);
     phys_body_set_collides(e->phys_body, true);
     darray_for_each(limb, e->limbs) phys_body_set_collides(*limb, true);
@@ -365,6 +365,12 @@ static void clappy_respawn(clappy *cl, struct scene *scene)
     cl->stood = 0.0f;
     cl->fall_top = to[1];
     cl->dead = -1.0f;
+}
+
+/* After a death fall: back at @safe, or where he started if that has gone */
+static void clappy_respawn(clappy *cl, struct scene *scene)
+{
+    clappy_respawn_at(cl, scene, clappy_has_ground(cl, cl->safe) ? cl->safe : cl->start);
 }
 
 /* Whether @cam is on clappy's front side, seen from above */
@@ -486,6 +492,13 @@ cerr clappy_update(clappy *cl, struct scene *scene)
     }
 
     return clappy_motor_set(cl);
+}
+
+void clappy_restart(clappy *cl, struct scene *scene)
+{
+    if (!cl->c)     return;
+
+    clappy_respawn_at(cl, scene, cl->start);
 }
 
 void clappy_done(clappy *cl)

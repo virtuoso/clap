@@ -319,6 +319,13 @@ cerr switches_resolve(switches *sws)
     return err;
 }
 
+void switches_reset(switches *sws)
+{
+    rotatable **r;
+
+    darray_for_each(r, sws->rotatables) rotatable_reset(*r);
+}
+
 void switches_done(switches *sws)
 {
     floor_switch **fs;
