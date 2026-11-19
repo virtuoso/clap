@@ -394,6 +394,19 @@ CLAP_API
 bool clap_is_paused(clap_context *ctx);
 
 /**
+ * clap_main_loop() - run the main loop until exit or a fatal error
+ *
+ * Drives the frame callbacks until an exit is requested or the display
+ * backend reports an unrecoverable error. Applications should call this
+ * instead of the display backend directly. The result must be checked.
+ *
+ * Return: %CERR_OK on a normal exit, or the unrecoverable error that ended the
+ *         loop.
+ */
+CLAP_API
+cerr_check clap_main_loop(void);
+
+/**
  * clap_update_input_controls() - apply input controls to the current state
  * @ctx:    clap_context
  *

@@ -1296,6 +1296,11 @@ static cerr clap_os_init(struct clap_context *ctx)
  * Main API
  ****************************************************************************/
 
+cerr_check clap_main_loop(void)
+{
+    return display_main_loop();
+}
+
 void clap_update_input_controls(struct clap_context *ctx)
 {
     if (!ctx->cfg.graphics || !ctx->cfg.input)  return;

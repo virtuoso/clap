@@ -662,7 +662,7 @@ int main(int argc, char **argv, char **envp)
 
     fuzzer_input_init(clap_res.val);
 
-    err = display_main_loop();
+    err = clap_main_loop();
     if (IS_CERR(err))   err_cerr(err, "main loop exited with an error\n");
     else                dbg("exiting peacefully\n");
 
